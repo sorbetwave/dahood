@@ -13,48 +13,45 @@ local currentCamera = workspace.CurrentCamera
 local victim = nil
 local targeting = false
 
+-- Optimized target function (only checks other players)
 local function target()
 	local target = nil
 	local shortdistance = math.huge
 
-	for _, v in next, workspace:GetDescendants() do
-		if v.Parent and v:IsA("Model") and v ~= localplayer.Character then
-			if v:FindFirstChildOfClass("Humanoid") then
-				if v:FindFirstChildOfClass("Humanoid").Health > 0 then
-					pcall(function()
-						local worldtoviewportpoint, onscreen = currentCamera:WorldToViewportPoint(v:FindFirstChildOfClass("Humanoid").RootPart.Position or v.PrimaryPart.Position)
-						local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(worldtoviewportpoint.X, worldtoviewportpoint.Y)).Magnitude
+	for _, plr in pairs(players:GetPlayers()) do
+		if plr ~= localplayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+			local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
+			if humanoid and humanoid.Health > 0 then
+				local success, screenPos = pcall(function()
+					return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
+				end)
 
-						if math.huge > distance and distance < shortdistance and onscreen then
-							target = v
-							shortdistance = distance
-						end
-					end)
+				if success and screenPos.Z > 0 then
+					local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+					if distance < shortdistance then
+						target = plr.Character.HumanoidRootPart
+						shortdistance = distance
+					end
 				end
 			end
 		end
 	end
-	return target and (target.PrimaryPart or target:FindFirstChildOfClass("Humanoid").RootPart)
+
+	return target
 end
 
--- Clean keybind section starts here
+-- Clean Q key toggle
 local toggleKey = Enum.KeyCode.Q
-
 userinputservice.InputBegan:Connect(function(input, processed)
 	if processed then return end
 
 	if input.KeyCode == toggleKey then
 		targeting = not targeting
-
-		if targeting then
-			victim = target()
-		else
-			victim = nil
-		end
+		victim = targeting and target() or nil
 	end
 end)
--- Clean keybind section ends here
 
+-- Velocity calculation
 local velocity = Vector3.new(0, 0, 0)
 local oldpos = Vector3.new(0, 0, 0)
 
@@ -62,7 +59,6 @@ runservice.Heartbeat:Connect(function(deltaTime)
 	if victim and victim.Parent then
 		local currentpos = victim.Position
 		local displacement = currentpos - oldpos
-
 		local vector = displacement / deltaTime
 
 		velocity = velocity:Lerp(Vector3.new(
@@ -75,33 +71,28 @@ runservice.Heartbeat:Connect(function(deltaTime)
 	end
 end)
 
+-- Aim logic
 runservice.RenderStepped:Connect(function()
-	local pos
-
 	if targeting and victim and victim.Parent then
-		if victim.Parent:FindFirstChildOfClass("Humanoid") then
-			if victim.Parent:FindFirstChildOfClass("Humanoid").Health > 0 then
+		local character = victim.Parent
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
 
-				if getgenv().usePrediction then
-					if getgenv().resolver then
-						pos = Vector3.new(
-							victim.Position.X,
-							victim.Position.Y,
-							victim.Position.Z) + (velocity * getgenv().prediction)
-					else
-						pos = Vector3.new(
-							victim.Position.X,
-							victim.Position.Y,
-							victim.Position.Z) + (victim.velocity * getgenv().prediction)
-					end
+		if humanoid and humanoid.Health > 0 then
+			local pos
+			if getgenv().usePrediction then
+				if getgenv().resolver then
+					pos = victim.Position + (velocity * getgenv().prediction)
 				else
-					pos = Vector3.new(victim.Position.X,
-						victim.Position.Y,
-						victim.Position.Z)
+					pos = victim.Position + (victim.Velocity * getgenv().prediction)
 				end
-
-				currentCamera.CFrame = currentCamera.CFrame:Lerp(CFrame.new(currentCamera.CFrame.Position, pos), getgenv().smoothness)
+			else
+				pos = victim.Position
 			end
+
+			currentCamera.CFrame = currentCamera.CFrame:Lerp(
+				CFrame.new(currentCamera.CFrame.Position, pos),
+				getgenv().smoothness
+			)
 		end
 	end
 end)
