@@ -28,6 +28,12 @@ local function isWithinFOV(target)
     return dotProduct > fovThreshold
 end
 
+-- Function to check if the target is ragdolled (falling or dead)
+local function isRagdolled(humanoid)
+    -- Check if humanoid state is falling or dead (ragdoll is typically either)
+    return humanoid:GetState() == Enum.HumanoidStateType.Physics or humanoid.Health <= 1
+end
+
 -- Optimized target function (only checks other players)
 local function target()
     local target = nil
@@ -36,13 +42,7 @@ local function target()
     for _, plr in pairs(players:GetPlayers()) do
         if plr ~= localplayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                -- Check if humanoid is ragdolled
-                if humanoid:GetState() == Enum.HumanoidStateType.Physics or humanoid:GetState() == Enum.HumanoidStateType.Dead then
-                    -- Skip targeting if the player is ragdolled
-                    continue
-                end
-
+            if humanoid and humanoid.Health > 0 and not isRagdolled(humanoid) then  -- Exclude ragdolled players
                 local success, screenPos = pcall(function()
                     return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
                 end)
