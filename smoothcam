@@ -3,6 +3,7 @@ getgenv().offset = 0.6
 getgenv().resolver = false
 getgenv().smoothness = 0.35
 getgenv().healthThreshold = 1
+getgenv().usePrediction = true -- Ensure this is set if using prediction
 
 local players = game:GetService("Players")
 local localplayer = players.LocalPlayer
@@ -15,109 +16,142 @@ local victim = nil
 local targeting = false
 local fovThreshold = 0.5
 
--- Wall check using raycast
-local function hasLineOfSight(origin, targetPosition)
-    local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = {localplayer.Character}
-    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+-- Function to calculate if the target is within the FOV
+local function isWithinFOV(target)
+    local cameraPosition = currentCamera.CFrame.Position
+    local targetPosition = target.Position
+    local directionToTarget = (targetPosition - cameraPosition).unit
+    local cameraDirection = currentCamera.CFrame.LookVector
+    local dotProduct = directionToTarget:Dot(cameraDirection)
+    return dotProduct > fovThreshold
+end
 
-    local result = workspace:Raycast(origin, (targetPosition - origin).Unit * 999, rayParams)
+-- Fixed wall check using Raycasting
+local function isVisible(target)
+    local rayOrigin = currentCamera.CFrame.Position
+    local rayDirection = (target.Position - rayOrigin)
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {localplayer.Character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.IgnoreWater = true
+
+    local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+
     if result then
-        return result.Instance:IsDescendantOf(game.Players:GetPlayerFromCharacter(victim and victim.Parent or nil).Character)
+        return result.Instance:IsDescendantOf(target.Parent)
     end
+
     return true
 end
 
--- FOV check
-local function isWithinFOV(target)
-    local cameraPosition = currentCamera.CFrame.Position
-    local directionToTarget = (target.Position - cameraPosition).Unit
-    local cameraDirection = currentCamera.CFrame.LookVector
-    return directionToTarget:Dot(cameraDirection) > fovThreshold
-end
-
--- Target selection
+-- Optimized target function
 local function target()
-    local bestTarget = nil
-    local shortest = math.huge
+    local target = nil
+    local shortdistance = math.huge
 
     for _, plr in pairs(players:GetPlayers()) do
         if plr ~= localplayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-            local ragdollTag = plr.Character:FindFirstChild("Ragdolled")  -- bool or tag
-
-            if humanoid and humanoid.Health > 0 and not (ragdollTag and ragdollTag.Value) then
-                local hrp = plr.Character.HumanoidRootPart
+            if humanoid and humanoid.Health > 0 then
                 local success, screenPos = pcall(function()
-                    return currentCamera:WorldToViewportPoint(hrp.Position)
+                    return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
                 end)
 
-                if success and screenPos.Z > 0 and isWithinFOV(hrp) then
-                    if hasLineOfSight(currentCamera.CFrame.Position, hrp.Position) then
-                        local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                        if distance < shortest then
-                            bestTarget = hrp
-                            shortest = distance
-                        end
+                if success and screenPos.Z > 0 and isWithinFOV(plr.Character.HumanoidRootPart) and isVisible(plr.Character.HumanoidRootPart) then
+                    local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                    if distance < shortdistance then
+                        target = plr.Character.HumanoidRootPart
+                        shortdistance = distance
                     end
                 end
             end
         end
     end
 
-    return bestTarget
+    return target
 end
 
--- Toggle
+-- Toggle keybind
+local toggleKey = Enum.KeyCode.Q
 userinputservice.InputBegan:Connect(function(input, processed)
-    if not processed and input.KeyCode == Enum.KeyCode.Q then
+    if processed then return end
+    if input.KeyCode == toggleKey then
         targeting = not targeting
         victim = targeting and target() or nil
     end
 end)
 
--- Velocity calculation
+-- Velocity prediction logic
 local velocity = Vector3.new(0, 0, 0)
 local oldpos = Vector3.new(0, 0, 0)
 
-runservice.Heartbeat:Connect(function(dt)
+runservice.Heartbeat:Connect(function(deltaTime)
     if victim and victim.Parent then
         local currentpos = victim.Position
         local displacement = currentpos - oldpos
-        local vector = displacement / dt
-        velocity = velocity:Lerp(Vector3.new(vector.X, vector.Y * 0.94 * getgenv().offset, vector.Z), 0.4)
+        local vector = displacement / deltaTime
+
+        velocity = velocity:Lerp(Vector3.new(
+            vector.X,
+            vector.Y * 0.94 * getgenv().offset,
+            vector.Z
+        ), 0.4)
+
         oldpos = currentpos
     end
 end)
 
--- Main aim logic
+-- Main softlock logic
 runservice.RenderStepped:Connect(function()
     if targeting and victim and victim.Parent then
-        local char = victim.Parent
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        local ragdollTag = char:FindFirstChild("Ragdolled")
+        local character = victim.Parent
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
 
-        if humanoid and humanoid.Health <= getgenv().healthThreshold or (ragdollTag and ragdollTag.Value) then
-            targeting = false
-            victim = nil
-        else
-            local pos = victim.Position
-            if getgenv().usePrediction then
-                pos = pos + ((getgenv().resolver and velocity) or victim.Velocity) * getgenv().prediction
+        if humanoid then
+            if humanoid.Health <= getgenv().healthThreshold then
+                targeting = false
+                victim = nil
+            else
+                local pos
+                if getgenv().usePrediction then
+                    if getgenv().resolver then
+                        pos = victim.Position + (velocity * getgenv().prediction)
+                    else
+                        pos = victim.Position + (victim.Velocity * getgenv().prediction)
+                    end
+                else
+                    pos = victim.Position
+                end
+
+                currentCamera.CFrame = currentCamera.CFrame:Lerp(
+                    CFrame.new(currentCamera.CFrame.Position, pos),
+                    getgenv().smoothness
+                )
             end
-            currentCamera.CFrame = currentCamera.CFrame:Lerp(
-                CFrame.new(currentCamera.CFrame.Position, pos),
-                getgenv().smoothness
-            )
-        end
-    end
-
-    -- Untoggle if localplayer HP is 1 or below
-    if localplayer.Character and localplayer.Character:FindFirstChildOfClass("Humanoid") then
-        local hp = localplayer.Character:FindFirstChildOfClass("Humanoid").Health
-        if hp <= 1 then
-            targeting = false
-            victim = nil
         end
     end
 end)
+
+-- Auto untoggle when local player dies
+local humanoid = localplayer.Character and localplayer.Character:FindFirstChildOfClass("Humanoid")
+if humanoid then
+    humanoid.HealthChanged:Connect(function()
+        if humanoid.Health <= getgenv().healthThreshold then
+            targeting = false
+            victim = nil
+        end
+    end)
+
+    players.LocalPlayer.CharacterAdded:Connect(function(character)
+        humanoid = character:WaitForChild("Humanoid")
+        if humanoid then
+            humanoid.HealthChanged:Connect(function()
+                if humanoid.Health <= getgenv().healthThreshold then
+                    targeting = false
+                    victim = nil
+                end
+            end)
+        end
+    end)
+end
