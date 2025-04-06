@@ -37,6 +37,12 @@ local function target()
         if plr ~= localplayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
             if humanoid and humanoid.Health > 0 then
+                -- Check if humanoid is ragdolled
+                if humanoid:GetState() == Enum.HumanoidStateType.Physics or humanoid:GetState() == Enum.HumanoidStateType.Dead then
+                    -- Skip targeting if the player is ragdolled
+                    continue
+                end
+
                 local success, screenPos = pcall(function()
                     return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
                 end)
