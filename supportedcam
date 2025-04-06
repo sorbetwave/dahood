@@ -2,7 +2,7 @@ getgenv().prediction = 0.102
 getgenv().offset = 0.6
 getgenv().resolver = false
 getgenv().smoothness = 0.35
-getgenv().healthThreshold = 5  -- Set to the health value where you want to unlock the target (health or below)
+getgenv().healthThreshold = 1  -- Set to the health value where you want to unlock or untoggle (1 HP or below)
 
 local players = game:GetService("Players")
 local localplayer = players.LocalPlayer
@@ -10,13 +10,12 @@ local mouse = localplayer:GetMouse()
 local userinputservice = game:GetService("UserInputService")
 local runservice = game:GetService("RunService")
 local currentCamera = workspace.CurrentCamera
-local workspace = game:GetService("Workspace")
 
 local victim = nil
 local targeting = false
 local fovThreshold = 0.5  -- Small FOV threshold (lower = smaller FOV, 1 is directly in front)
 
--- Function to calculate if the target is within the FOV (improved)
+-- Function to calculate if the target is within the FOV
 local function isWithinFOV(target)
     local cameraPosition = currentCamera.CFrame.Position
     local targetPosition = target.Position
@@ -26,20 +25,10 @@ local function isWithinFOV(target)
     -- Dot product to calculate the angle between the camera's direction and the target direction
     local dotProduct = directionToTarget:Dot(cameraDirection)
 
-    -- Compare the dot product with the FOV threshold
     return dotProduct > fovThreshold
 end
 
--- Function to check if there are any obstacles (walls) between the camera and the target
-local function isBehindWall(target)
-    local ray = Ray.new(currentCamera.CFrame.Position, (target.Position - currentCamera.CFrame.Position).unit * (currentCamera.CFrame.Position - target.Position).Magnitude)
-    local hitPart = workspace:FindPartOnRay(ray, localplayer.Character)
-
-    -- If hitPart is not nil and is not the target itself, it's a wall
-    return hitPart and hitPart.Parent and hitPart.Parent ~= target.Parent
-end
-
--- Optimized target function that checks the closest valid player within FOV, mouse distance, and no walls
+-- Optimized target function (only checks other players)
 local function target()
     local target = nil
     local shortdistance = math.huge
@@ -52,7 +41,7 @@ local function target()
                     return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
                 end)
 
-                if success and screenPos.Z > 0 and isWithinFOV(plr.Character.HumanoidRootPart) and not isBehindWall(plr.Character.HumanoidRootPart) then
+                if success and screenPos.Z > 0 and isWithinFOV(plr.Character.HumanoidRootPart) then
                     -- Check the distance from the mouse position
                     local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
                     if distance < shortdistance then
@@ -98,7 +87,7 @@ runservice.Heartbeat:Connect(function(deltaTime)
     end
 end)
 
--- Aim logic with FOV check, health check (<= healthThreshold), and wall check
+-- Aim logic with FOV check and health check (<= healthThreshold)
 runservice.RenderStepped:Connect(function()
     if targeting and victim and victim.Parent then
         local character = victim.Parent
@@ -115,7 +104,7 @@ runservice.RenderStepped:Connect(function()
                 targeting = false
                 victim = nil
             else
-                -- If health is above the specified value and no wall in the way, perform aiming
+                -- If health is above the specified value, perform aiming
                 local pos
                 if getgenv().usePrediction then
                     if getgenv().resolver then
@@ -132,6 +121,17 @@ runservice.RenderStepped:Connect(function()
                     getgenv().smoothness
                 )
             end
+        end
+    end
+
+    -- Check if the local player's health is 1 or below
+    if localplayer.Character and localplayer.Character:FindFirstChildOfClass("Humanoid") then
+        local humanoid = localplayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid and humanoid.Health <= 1 then
+            -- If the player's health is 1 or below, untoggle and unlock
+            print("Unlocking/Untoggling because local player health is " .. humanoid.Health)
+            targeting = false
+            victim = nil
         end
     end
 end)
