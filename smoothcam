@@ -2,7 +2,7 @@ getgenv().prediction = 0.102
 getgenv().offset = 0.6
 getgenv().resolver = false
 getgenv().smoothness = 0.35
-getgenv().healthThreshold = 1  -- Set to the health value where you want to unlock or untoggle (1 HP or below)
+getgenv().healthThreshold = 1
 
 local players = game:GetService("Players")
 local localplayer = players.LocalPlayer
@@ -13,61 +13,64 @@ local currentCamera = workspace.CurrentCamera
 
 local victim = nil
 local targeting = false
-local fovThreshold = 0.5  -- Small FOV threshold (lower = smaller FOV, 1 is directly in front)
+local fovThreshold = 0.5
 
--- Function to calculate if the target is within the FOV
+-- Wall check using raycast
+local function hasLineOfSight(origin, targetPosition)
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {localplayer.Character}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+    local result = workspace:Raycast(origin, (targetPosition - origin).Unit * 999, rayParams)
+    if result then
+        return result.Instance:IsDescendantOf(game.Players:GetPlayerFromCharacter(victim and victim.Parent or nil).Character)
+    end
+    return true
+end
+
+-- FOV check
 local function isWithinFOV(target)
     local cameraPosition = currentCamera.CFrame.Position
-    local targetPosition = target.Position
-    local directionToTarget = (targetPosition - cameraPosition).unit
+    local directionToTarget = (target.Position - cameraPosition).Unit
     local cameraDirection = currentCamera.CFrame.LookVector
-
-    -- Dot product to calculate the angle between the camera's direction and the target direction
-    local dotProduct = directionToTarget:Dot(cameraDirection)
-
-    return dotProduct > fovThreshold
+    return directionToTarget:Dot(cameraDirection) > fovThreshold
 end
 
--- Function to check if the target is ragdolled (falling or dead)
-local function isRagdolled(humanoid)
-    -- Check if humanoid state is falling or dead (ragdoll is typically either)
-    return humanoid:GetState() == Enum.HumanoidStateType.Physics or humanoid.Health <= 1
-end
-
--- Optimized target function (only checks other players)
+-- Target selection
 local function target()
-    local target = nil
-    local shortdistance = math.huge
+    local bestTarget = nil
+    local shortest = math.huge
 
     for _, plr in pairs(players:GetPlayers()) do
         if plr ~= localplayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid and humanoid.Health > 0 and not isRagdolled(humanoid) then  -- Exclude ragdolled players
+            local ragdollTag = plr.Character:FindFirstChild("Ragdolled")  -- bool or tag
+
+            if humanoid and humanoid.Health > 0 and not (ragdollTag and ragdollTag.Value) then
+                local hrp = plr.Character.HumanoidRootPart
                 local success, screenPos = pcall(function()
-                    return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
+                    return currentCamera:WorldToViewportPoint(hrp.Position)
                 end)
 
-                if success and screenPos.Z > 0 and isWithinFOV(plr.Character.HumanoidRootPart) then
-                    -- Check the distance from the mouse position
-                    local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                    if distance < shortdistance then
-                        target = plr.Character.HumanoidRootPart
-                        shortdistance = distance
+                if success and screenPos.Z > 0 and isWithinFOV(hrp) then
+                    if hasLineOfSight(currentCamera.CFrame.Position, hrp.Position) then
+                        local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                        if distance < shortest then
+                            bestTarget = hrp
+                            shortest = distance
+                        end
                     end
                 end
             end
         end
     end
 
-    return target
+    return bestTarget
 end
 
--- Clean Q key toggle
-local toggleKey = Enum.KeyCode.Q
+-- Toggle
 userinputservice.InputBegan:Connect(function(input, processed)
-    if processed then return end
-
-    if input.KeyCode == toggleKey then
+    if not processed and input.KeyCode == Enum.KeyCode.Q then
         targeting = not targeting
         victim = targeting and target() or nil
     end
@@ -77,65 +80,42 @@ end)
 local velocity = Vector3.new(0, 0, 0)
 local oldpos = Vector3.new(0, 0, 0)
 
-runservice.Heartbeat:Connect(function(deltaTime)
+runservice.Heartbeat:Connect(function(dt)
     if victim and victim.Parent then
         local currentpos = victim.Position
         local displacement = currentpos - oldpos
-        local vector = displacement / deltaTime
-
-        velocity = velocity:Lerp(Vector3.new(
-            vector.X,
-            vector.Y * 0.94 * getgenv().offset,
-            vector.Z
-        ), 0.4)
-
+        local vector = displacement / dt
+        velocity = velocity:Lerp(Vector3.new(vector.X, vector.Y * 0.94 * getgenv().offset, vector.Z), 0.4)
         oldpos = currentpos
     end
 end)
 
--- Aim logic with FOV check and health check (<= healthThreshold)
+-- Main aim logic
 runservice.RenderStepped:Connect(function()
     if targeting and victim and victim.Parent then
-        local character = victim.Parent
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local char = victim.Parent
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        local ragdollTag = char:FindFirstChild("Ragdolled")
 
-        if humanoid then
-            -- Print debug information to see health value
-            print("Target Health: " .. humanoid.Health)
-
-            -- Check if the player's health is less than or equal to the specified value
-            if humanoid.Health <= getgenv().healthThreshold then
-                -- If the player's health is less than or equal to the specified value, unlock
-                print("Unlocking Target because health is " .. humanoid.Health .. " <= " .. getgenv().healthThreshold)
-                targeting = false
-                victim = nil
-            else
-                -- If health is above the specified value, perform aiming
-                local pos
-                if getgenv().usePrediction then
-                    if getgenv().resolver then
-                        pos = victim.Position + (velocity * getgenv().prediction)
-                    else
-                        pos = victim.Position + (victim.Velocity * getgenv().prediction)
-                    end
-                else
-                    pos = victim.Position
-                end
-
-                currentCamera.CFrame = currentCamera.CFrame:Lerp(
-                    CFrame.new(currentCamera.CFrame.Position, pos),
-                    getgenv().smoothness
-                )
+        if humanoid and humanoid.Health <= getgenv().healthThreshold or (ragdollTag and ragdollTag.Value) then
+            targeting = false
+            victim = nil
+        else
+            local pos = victim.Position
+            if getgenv().usePrediction then
+                pos = pos + ((getgenv().resolver and velocity) or victim.Velocity) * getgenv().prediction
             end
+            currentCamera.CFrame = currentCamera.CFrame:Lerp(
+                CFrame.new(currentCamera.CFrame.Position, pos),
+                getgenv().smoothness
+            )
         end
     end
 
-    -- Check if the local player's health is 1 or below
+    -- Untoggle if localplayer HP is 1 or below
     if localplayer.Character and localplayer.Character:FindFirstChildOfClass("Humanoid") then
-        local humanoid = localplayer.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid and humanoid.Health <= 1 then
-            -- If the player's health is 1 or below, untoggle and unlock
-            print("Unlocking/Untoggling because local player health is " .. humanoid.Health)
+        local hp = localplayer.Character:FindFirstChildOfClass("Humanoid").Health
+        if hp <= 1 then
             targeting = false
             victim = nil
         end
