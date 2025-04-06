@@ -2,6 +2,7 @@ getgenv().prediction = 0.102
 getgenv().offset = 0.6
 getgenv().resolver = false
 getgenv().smoothness = 0.35
+getgenv().healthThreshold = 5  -- Adjust this value to the threshold where the player ragdolls
 
 local players = game:GetService("Players")
 local localplayer = players.LocalPlayer
@@ -109,9 +110,11 @@ runservice.RenderStepped:Connect(function()
                 getgenv().smoothness
             )
         else
-            -- Unlock if the target's health reaches 0
-            targeting = false
-            victim = nil
+            -- Unlock if the target's health is below the health threshold (e.g., ragdoll happens at 5 or 1 health)
+            if humanoid and humanoid.Health <= getgenv().healthThreshold then
+                targeting = false
+                victim = nil
+            end
         end
     end
 end)
