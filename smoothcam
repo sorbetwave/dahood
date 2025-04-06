@@ -2,7 +2,7 @@ getgenv().prediction = 0.102
 getgenv().offset = 0.6
 getgenv().resolver = false
 getgenv().smoothness = 0.35
-getgenv().healthThreshold = 5  -- Set to the health value where you want to unlock the target (health or below)
+getgenv().healthThreshold = 1  -- Set to the health value where you want to unlock the target (health or below)
 
 local players = game:GetService("Players")
 local localplayer = players.LocalPlayer
@@ -15,7 +15,7 @@ local victim = nil
 local targeting = false
 local fovThreshold = 0.5  -- Small FOV threshold (lower = smaller FOV, 1 is directly in front)
 
--- Function to calculate if the target is within the FOV (improved)
+-- Function to calculate if the target is within the FOV
 local function isWithinFOV(target)
     local cameraPosition = currentCamera.CFrame.Position
     local targetPosition = target.Position
@@ -25,11 +25,22 @@ local function isWithinFOV(target)
     -- Dot product to calculate the angle between the camera's direction and the target direction
     local dotProduct = directionToTarget:Dot(cameraDirection)
 
-    -- Compare the dot product with the FOV threshold
     return dotProduct > fovThreshold
 end
 
--- Optimized target function that checks the closest valid player within FOV and mouse distance
+-- Wall check using Raycasting
+local function isVisible(target)
+    local rayOrigin = currentCamera.CFrame.Position
+    local rayDirection = (target.Position - rayOrigin).unit * 500  -- Adjust length as needed
+    local ray = workspace:Raycast(rayOrigin, rayDirection)
+
+    if ray and ray.Instance then
+        return ray.Instance:IsDescendantOf(target.Parent)  -- If the ray hit something other than the target, it's blocked
+    end
+    return true  -- No wall or obstacle detected
+end
+
+-- Optimized target function (only checks other players)
 local function target()
     local target = nil
     local shortdistance = math.huge
@@ -42,7 +53,7 @@ local function target()
                     return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
                 end)
 
-                if success and screenPos.Z > 0 and isWithinFOV(plr.Character.HumanoidRootPart) then
+                if success and screenPos.Z > 0 and isWithinFOV(plr.Character.HumanoidRootPart) and isVisible(plr.Character.HumanoidRootPart) then
                     -- Check the distance from the mouse position
                     local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
                     if distance < shortdistance then
@@ -88,7 +99,7 @@ runservice.Heartbeat:Connect(function(deltaTime)
     end
 end)
 
--- Aim logic with FOV check and health check (<= healthThreshold)
+-- Aim logic with FOV check, health check (<= healthThreshold), and wall check
 runservice.RenderStepped:Connect(function()
     if targeting and victim and victim.Parent then
         local character = victim.Parent
