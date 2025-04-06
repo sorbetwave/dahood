@@ -12,7 +12,6 @@ local currentCamera = workspace.CurrentCamera
 
 local victim = nil
 local targeting = false
-local specificPlayerName = "SpecificPlayerName"  -- Replace with the name of the player you want to lock onto
 local fovThreshold = 0.5  -- Small FOV threshold (lower = smaller FOV, 1 is directly in front)
 
 -- Function to calculate if the target is within the FOV
@@ -37,19 +36,16 @@ local function target()
         if plr ~= localplayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
             if humanoid and humanoid.Health > 0 then
-                -- Only target the specific player if they are within FOV
-                if plr.Name == specificPlayerName then
-                    local success, screenPos = pcall(function()
-                        return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
-                    end)
+                local success, screenPos = pcall(function()
+                    return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
+                end)
 
-                    if success and screenPos.Z > 0 and isWithinFOV(plr.Character.HumanoidRootPart) then
-                        -- Check the distance from the mouse position
-                        local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                        if distance < shortdistance then
-                            target = plr.Character.HumanoidRootPart
-                            shortdistance = distance
-                        end
+                if success and screenPos.Z > 0 and isWithinFOV(plr.Character.HumanoidRootPart) then
+                    -- Check the distance from the mouse position
+                    local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                    if distance < shortdistance then
+                        target = plr.Character.HumanoidRootPart
+                        shortdistance = distance
                     end
                 end
             end
