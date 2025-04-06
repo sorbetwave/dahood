@@ -12,43 +12,62 @@ local currentCamera = workspace.CurrentCamera
 
 local victim = nil
 local targeting = false
+local specificPlayerName = "SpecificPlayerName"  -- Replace with the name of the player you want to lock onto
+local fovThreshold = 0.5  -- Small FOV threshold (lower = smaller FOV, 1 is directly in front)
+
+-- Function to calculate if the target is within the FOV
+local function isWithinFOV(target)
+    local cameraPosition = currentCamera.CFrame.Position
+    local targetPosition = target.Position
+    local directionToTarget = (targetPosition - cameraPosition).unit
+    local cameraDirection = currentCamera.CFrame.LookVector
+
+    -- Dot product to calculate the angle between the camera's direction and the target direction
+    local dotProduct = directionToTarget:Dot(cameraDirection)
+
+    return dotProduct > fovThreshold
+end
 
 -- Optimized target function (only checks other players)
 local function target()
-	local target = nil
-	local shortdistance = math.huge
+    local target = nil
+    local shortdistance = math.huge
 
-	for _, plr in pairs(players:GetPlayers()) do
-		if plr ~= localplayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-			local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-			if humanoid and humanoid.Health > 0 then
-				local success, screenPos = pcall(function()
-					return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
-				end)
+    for _, plr in pairs(players:GetPlayers()) do
+        if plr ~= localplayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                -- Only target the specific player if they are within FOV
+                if plr.Name == specificPlayerName then
+                    local success, screenPos = pcall(function()
+                        return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
+                    end)
 
-				if success and screenPos.Z > 0 then
-					local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-					if distance < shortdistance then
-						target = plr.Character.HumanoidRootPart
-						shortdistance = distance
-					end
-				end
-			end
-		end
-	end
+                    if success and screenPos.Z > 0 and isWithinFOV(plr.Character.HumanoidRootPart) then
+                        -- Check the distance from the mouse position
+                        local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                        if distance < shortdistance then
+                            target = plr.Character.HumanoidRootPart
+                            shortdistance = distance
+                        end
+                    end
+                end
+            end
+        end
+    end
 
-	return target
+    return target
 end
 
 -- Clean Q key toggle
 local toggleKey = Enum.KeyCode.Q
 userinputservice.InputBegan:Connect(function(input, processed)
-	if processed then return end
+    if processed then return end
 
-	if input.KeyCode == toggleKey then
-		targeting = not targeting
-		victim = targeting and target() or nil
-	end
+    if input.KeyCode == toggleKey then
+        targeting = not targeting
+        victim = targeting and target() or nil
+    end
 end)
 
 -- Velocity calculation
@@ -56,43 +75,47 @@ local velocity = Vector3.new(0, 0, 0)
 local oldpos = Vector3.new(0, 0, 0)
 
 runservice.Heartbeat:Connect(function(deltaTime)
-	if victim and victim.Parent then
-		local currentpos = victim.Position
-		local displacement = currentpos - oldpos
-		local vector = displacement / deltaTime
+    if victim and victim.Parent then
+        local currentpos = victim.Position
+        local displacement = currentpos - oldpos
+        local vector = displacement / deltaTime
 
-		velocity = velocity:Lerp(Vector3.new(
-			vector.X,
-			vector.Y * 0.94 * getgenv().offset,
-			vector.Z
-		), 0.4)
+        velocity = velocity:Lerp(Vector3.new(
+            vector.X,
+            vector.Y * 0.94 * getgenv().offset,
+            vector.Z
+        ), 0.4)
 
-		oldpos = currentpos
-	end
+        oldpos = currentpos
+    end
 end)
 
--- Aim logic
+-- Aim logic with FOV check and health check
 runservice.RenderStepped:Connect(function()
-	if targeting and victim and victim.Parent then
-		local character = victim.Parent
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if targeting and victim and victim.Parent then
+        local character = victim.Parent
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
 
-		if humanoid and humanoid.Health > 0 then
-			local pos
-			if getgenv().usePrediction then
-				if getgenv().resolver then
-					pos = victim.Position + (velocity * getgenv().prediction)
-				else
-					pos = victim.Position + (victim.Velocity * getgenv().prediction)
-				end
-			else
-				pos = victim.Position
-			end
+        if humanoid and humanoid.Health > 0 then
+            local pos
+            if getgenv().usePrediction then
+                if getgenv().resolver then
+                    pos = victim.Position + (velocity * getgenv().prediction)
+                else
+                    pos = victim.Position + (victim.Velocity * getgenv().prediction)
+                end
+            else
+                pos = victim.Position
+            end
 
-			currentCamera.CFrame = currentCamera.CFrame:Lerp(
-				CFrame.new(currentCamera.CFrame.Position, pos),
-				getgenv().smoothness
-			)
-		end
-	end
+            currentCamera.CFrame = currentCamera.CFrame:Lerp(
+                CFrame.new(currentCamera.CFrame.Position, pos),
+                getgenv().smoothness
+            )
+        else
+            -- Unlock if the target's health reaches 0
+            targeting = false
+            victim = nil
+        end
+    end
 end)
