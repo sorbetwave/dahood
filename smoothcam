@@ -15,7 +15,7 @@ local victim = nil
 local targeting = false
 local fovThreshold = 0.5  -- Small FOV threshold (lower = smaller FOV, 1 is directly in front)
 
--- Function to calculate if the target is within the FOV
+-- Function to calculate if the target is within the FOV (improved)
 local function isWithinFOV(target)
     local cameraPosition = currentCamera.CFrame.Position
     local targetPosition = target.Position
@@ -25,10 +25,11 @@ local function isWithinFOV(target)
     -- Dot product to calculate the angle between the camera's direction and the target direction
     local dotProduct = directionToTarget:Dot(cameraDirection)
 
+    -- Compare the dot product with the FOV threshold
     return dotProduct > fovThreshold
 end
 
--- Optimized target function (only checks other players)
+-- Optimized target function that checks the closest valid player within FOV and mouse distance
 local function target()
     local target = nil
     local shortdistance = math.huge
