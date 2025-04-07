@@ -1,7 +1,7 @@
 getgenv().prediction = 0.102
 getgenv().offset = 0.6
 getgenv().resolver = false
-getgenv().smoothness = 0.35
+getgenv().smoothness = 0.30
 getgenv().healthThreshold = 1
 
 local players = game:GetService("Players")
