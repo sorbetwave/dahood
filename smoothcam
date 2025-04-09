@@ -17,7 +17,7 @@ local fovThreshold = 0.5
 
 -- Softlock shake function
 local function addShake(position)
-    local shakeMagnitude = 1.5
+    local shakeMagnitude = 2
     local randomOffset = Vector3.new(
         (math.random() - 0.5) * 2 * shakeMagnitude,
         (math.random() - 0.5) * 2 * shakeMagnitude,
