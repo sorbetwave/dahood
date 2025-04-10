@@ -1,7 +1,7 @@
-getgenv().prediction = 0.102
-getgenv().offset = 0.6
+getgenv().prediction = 0
+getgenv().offset = 0
 getgenv().resolver = false
-getgenv().smoothness = 0.30
+getgenv().smoothness = 0.9
 getgenv().healthThreshold = 1
 
 local players = game:GetService("Players")
@@ -14,6 +14,17 @@ local currentCamera = workspace.CurrentCamera
 local victim = nil
 local targeting = false
 local fovThreshold = 0.5
+
+-- Softlock shake function
+local function addShake(position)
+    local shakeMagnitude = 0.1
+    local randomOffset = Vector3.new(
+        (math.random() - 0.5) * 2 * shakeMagnitude,
+        (math.random() - 0.5) * 2 * shakeMagnitude,
+        (math.random() - 0.5) * 2 * shakeMagnitude
+    )
+    return position + randomOffset
+end
 
 local function isVisible(target)
     local origin = currentCamera.CFrame.Position
@@ -119,7 +130,7 @@ runservice.RenderStepped:Connect(function()
                 end
 
                 currentCamera.CFrame = currentCamera.CFrame:Lerp(
-                    CFrame.new(currentCamera.CFrame.Position, pos),
+                    CFrame.new(currentCamera.CFrame.Position, addShake(pos)),
                     getgenv().smoothness
                 )
             end
