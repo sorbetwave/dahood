@@ -32,11 +32,13 @@ StarterGui:SetCore("SendNotification", {
     Duration = 3
 })
 
+-- Update the position of the FOV circle to follow the mouse correctly
 RunService.RenderStepped:Connect(function()
     FOV.Position = Vector2.new(Mouse.X, Mouse.Y)
     FOV.Visible = getgenv().TriggerBotEnabled
 end)
 
+-- Toggle TriggerBot on/off with the C key
 UIS.InputBegan:Connect(function(input, gpe)
     if not gpe and input.KeyCode == getgenv().TriggerKey then
         getgenv().TriggerBotEnabled = not getgenv().TriggerBotEnabled
@@ -48,20 +50,25 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
+-- Trigger bot logic: Fire when an enemy is within FOV and mouse is aimed at a valid part
 RunService.RenderStepped:Connect(function()
-    if getgenv().TriggerBotEnabled and Mouse.Target then
-        local part = Mouse.Target
-        local model = part:FindFirstAncestorOfClass("Model")
-        local player = Players:GetPlayerFromCharacter(model)
+    if getgenv().TriggerBotEnabled then
+        local targetPart = Mouse.Target
+        if targetPart then
+            local model = targetPart:FindFirstAncestorOfClass("Model")
+            local player = Players:GetPlayerFromCharacter(model)
 
-        if player and player ~= LocalPlayer and validParts[part.Name] then
-            local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-            if onScreen and (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude <= getgenv().FOVRadius then
-                task.delay(0.001, function()
-                    mouse1press()
-                    task.wait()
-                    mouse1release()
-                end)
+            -- Check if target is a valid player and within FOV
+            if player and player ~= LocalPlayer and validParts[targetPart.Name] then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen and (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude <= getgenv().FOVRadius then
+                    -- Perform trigger bot action by simulating mouse click
+                    task.delay(0.001, function()
+                        mouse1press()
+                        task.wait()
+                        mouse1release()
+                    end)
+                end
             end
         end
     end
