@@ -1,57 +1,43 @@
+--// Configuration
+getgenv().TriggerBot = false
+getgenv().TriggerDelay = 0.005
+
+--// Services
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
--- SETTINGS
-local triggerbotEnabled = false
-local triggerDelay = 0.01 -- Delay before shooting (seconds)
-local predictionAmount = 0 -- Prediction is set to 0 (no prediction)
+--// Toggle keybind
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.C then
+        getgenv().TriggerBot = not getgenv().TriggerBot
 
--- Function to check if the mouse is on an enemy
-local function getTarget()
-    local target = Mouse.Target
-    if target and target.Parent then
-        local character = target.Parent
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        local isEnemy = Players:GetPlayerFromCharacter(character) and character ~= LocalPlayer.Character
-
-        if humanoid and isEnemy then
-            return character
-        end
-    end
-    return nil
-end
-
--- Function to simulate shooting
-local function shoot()
-    -- Simulates left click
-    mouse1press()
-    wait(0.05)
-    mouse1release()
-end
-
--- Main loop for the triggerbot
-RunService.RenderStepped:Connect(function()
-    if triggerbotEnabled and UserInputService:IsKeyDown(Enum.KeyCode.C) then -- Toggle 'C' to activate
-        local target = getTarget()
-        if target then
-            -- Prediction logic (no prediction applied)
-            local humanoidRoot = target:FindFirstChild("HumanoidRootPart")
-            if humanoidRoot then
-                Mouse.Hit = Mouse.Hit -- No prediction, direct hit
-            end
-
-            -- Delay before shooting
-            wait(triggerDelay)
-            shoot()
-        end
+        -- Display status message on screen
+        local msg = Instance.new("Message", workspace)
+        msg.Text = "Trigger Bot " .. (getgenv().TriggerBot and "Enabled" or "Disabled")
+        task.delay(2, function()
+            msg:Destroy()
+        end)
     end
 end)
 
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Triggerbot Loaded",
-    Text = "Press 'C' to activate the triggerbot.",
-    Duration = 3
-})
+--// Trigger bot loop
+RunService.RenderStepped:Connect(function()
+    if not getgenv().TriggerBot then return end
+
+    local target = Mouse.Target
+    if target and target.Name == "HumanoidRootPart" then
+        local character = target.Parent
+        local player = Players:GetPlayerFromCharacter(character)
+
+        if player and player ~= LocalPlayer then
+            VirtualInputManager:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, true, game, 0) -- mouse1 down
+            task.wait(getgenv().TriggerDelay)
+            VirtualInputManager:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0) -- mouse1 up
+        end
+    end
+end)
