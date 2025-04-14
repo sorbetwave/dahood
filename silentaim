@@ -1,106 +1,74 @@
-getgenv().silentaim = true
-getgenv().prediction = 0.102
-getgenv().offset = 0.6
-getgenv().resolver = false
-getgenv().healthThreshold = 1
-getgenv().fovThreshold = 0.5
+-- // Configuration
+getgenv().SilentAim = true
+getgenv().FOVRadius = 80
+getgenv().Prediction = 0.125
+getgenv().Resolver = false
 
-local players = game:GetService("Players")
-local localplayer = players.LocalPlayer
-local mouse = localplayer:GetMouse()
-local currentCamera = workspace.CurrentCamera
-local runservice = game:GetService("RunService")
+-- // Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = Workspace.CurrentCamera
+local Drawing = Drawing or loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
 
-local victim = nil
-local velocity = Vector3.new(0, 0, 0)
-local oldpos = Vector3.new(0, 0, 0)
+-- // FOV Circle
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Position = Vector2.zero
+FOVCircle.Radius = getgenv().FOVRadius
+FOVCircle.Thickness = 1.5
+FOVCircle.Transparency = 1
+FOVCircle.Color = Color3.fromRGB(255, 255, 255)
+FOVCircle.Filled = false
+FOVCircle.Visible = true
 
--- Function to check visibility
-local function isVisible(target)
-    local origin = currentCamera.CFrame.Position
-    local direction = target.Position - origin
-
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    raycastParams.FilterDescendantsInstances = {localplayer.Character}
-    raycastParams.IgnoreWater = true
-
-    local result = workspace:Raycast(origin, direction, raycastParams)
-    if result then
-        return result.Instance:IsDescendantOf(target.Parent)
-    end
-    return true
-end
-
--- FOV check
-local function isWithinFOV(target)
-    local cameraPosition = currentCamera.CFrame.Position
-    local targetPosition = target.Position
-    local directionToTarget = (targetPosition - cameraPosition).unit
-    local cameraDirection = currentCamera.CFrame.LookVector
-
-    local dotProduct = directionToTarget:Dot(cameraDirection)
-    return dotProduct > getgenv().fovThreshold
-end
-
--- Target finder
-local function getTarget()
-    local closestTarget = nil
+-- // Functions
+local function getClosestTarget()
+    local closest = nil
     local shortestDistance = math.huge
 
-    for _, plr in pairs(players:GetPlayers()) do
-        if plr ~= localplayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid and humanoid.Health > getgenv().healthThreshold then
-                local success, screenPos = pcall(function()
-                    return currentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
-                end)
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChildOfClass("Humanoid") then
+            local hrp = player.Character.HumanoidRootPart
+            local human = player.Character:FindFirstChildOfClass("Humanoid")
 
-                if success and screenPos.Z > 0 and isWithinFOV(plr.Character.HumanoidRootPart) and isVisible(plr.Character.HumanoidRootPart) then
-                    local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                    if distance < shortestDistance then
-                        closestTarget = plr.Character.HumanoidRootPart
-                        shortestDistance = distance
-                    end
+            if human and human.Health > 0 then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+                local targetPos = Vector2.new(screenPos.X, screenPos.Y)
+                local distance = (mousePos - targetPos).Magnitude
+
+                if onScreen and distance < shortestDistance and distance < getgenv().FOVRadius then
+                    shortestDistance = distance
+                    closest = hrp
                 end
             end
         end
     end
 
-    return closestTarget
+    return closest
 end
 
--- Prediction calc
-runservice.Heartbeat:Connect(function(deltaTime)
-    if victim and victim.Parent then
-        local currentpos = victim.Position
-        local displacement = currentpos - oldpos
-        local vector = displacement / deltaTime
-
-        velocity = velocity:Lerp(Vector3.new(
-            vector.X,
-            vector.Y * 0.94 * getgenv().offset,
-            vector.Z
-        ), 0.4)
-
-        oldpos = currentpos
-    end
-end)
-
--- Hook __namecall to apply silent aim
-local mt = getrawmetatable(game)
-setreadonly(mt, false)
-local old = mt.__namecall
-
-mt.__namecall = newcclosure(function(self, ...)
+-- // Hook
+local __namecall
+__namecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
 
-    if getgenv().silentaim and tostring(self) == "Hit" or tostring(self) == "Target" then
-        victim = getTarget()
-        if victim and victim.Parent then
-            local predictedPos
-            if getgenv().resolver then
-                predictedPos = victim.Position + (velocity * getgenv().prediction)
-            else
-                predictedPos = victim.Position + (victim.V
+    if getgenv().SilentAim and tostring(self) == "Hit" and method == "FireServer" then
+        local target = getClosestTarget()
+        if target then
+            local predictedPosition = target.Position + (getgenv().Resolver and target.Velocity * getgenv().Prediction or Vector3.zero)
+            args[1] = predictedPosition
+            return __namecall(self, unpack(args))
+        end
+    end
+
+    return __namecall(self, ...)
+end))
+
+-- // FOV Update
+RunService.RenderStepped:Connect(function()
+    FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)
+end)
