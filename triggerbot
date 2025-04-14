@@ -1,43 +1,25 @@
---// Configuration
-getgenv().TriggerBot = false
-getgenv().TriggerDelay = 0.005
-
---// Services
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local lp = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() and Players.LocalPlayer
+local mouse = lp:GetMouse()
 
---// Toggle keybind
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.C then
-        getgenv().TriggerBot = not getgenv().TriggerBot
+local function gettarget(instance)
+   for i,v in next, Players:GetPlayers() do
+      if v.Character and (instance == v.Character or instance:IsDescendantOf(v.Character)) then
+         return true
+      end
+   end
+end
 
-        -- Display status message on screen
-        local msg = Instance.new("Message", workspace)
-        msg.Text = "Trigger Bot " .. (getgenv().TriggerBot and "Enabled" or "Disabled")
-        task.delay(2, function()
-            msg:Destroy()
-        end)
-    end
+local con = game:GetService("RunService").Heartbeat:Connect(function()
+   if gettarget(mouse.Target) then
+      mouse1press()
+      task.wait()
+      mouse1release()
+   end
 end)
 
---// Trigger bot loop
-RunService.RenderStepped:Connect(function()
-    if not getgenv().TriggerBot then return end
-
-    local target = Mouse.Target
-    if target and target.Name == "HumanoidRootPart" then
-        local character = target.Parent
-        local player = Players:GetPlayerFromCharacter(character)
-
-        if player and player ~= LocalPlayer then
-            VirtualInputManager:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, true, game, 0) -- mouse1 down
-            task.wait(getgenv().TriggerDelay)
-            VirtualInputManager:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0) -- mouse1 up
-        end
-    end
-end)
+getgenv().disable = function()
+   getgenv().disable = nil
+   warn("Disconnecting:",con)
+   con:Disconnect()
+end
