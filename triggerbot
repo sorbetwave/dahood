@@ -3,6 +3,7 @@ local lp = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"
 local mouse = lp:GetMouse()
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+
 local triggerEnabled = false
 local con
 
@@ -15,13 +16,13 @@ local function gettarget(instance)
 end
 
 local function notify(state)
-    pcall(function()
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Trigger Bot";
-            Text = state and "Enabled" or "Disabled";
-            Duration = 2;
-        })
-    end)
+   pcall(function()
+       game.StarterGui:SetCore("SendNotification", {
+           Title = "Trigger Bot",
+           Text = state and "Enabled" or "Disabled",
+           Duration = 2
+       })
+   end)
 end
 
 UserInputService.InputBegan:Connect(function(input, gpe)
@@ -29,11 +30,10 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         triggerEnabled = not triggerEnabled
         notify(triggerEnabled)
 
-        if triggerEnabled then
+        if triggerEnabled and not con then
             con = RunService.Heartbeat:Connect(function()
                 if gettarget(mouse.Target) and mouse.Target.Name == "HumanoidRootPart" then
                     mouse1press()
-                    task.wait(0.005)
                     mouse1release()
                 end
             end)
