@@ -25,7 +25,7 @@ fovCircle.Filled = false
 fovCircle.Visible = true
 
 runservice.RenderStepped:Connect(function()
-    fovCircle.Position = Vector2.new(mouse.X, mouse.Y) + Vector2.new(0.5, 0.5)
+    fovCircle.Position = Vector2.new(mouse.X, mouse.Y) + Vector2.new(0, 36)
 end)
 
 -- Softlock shake function
