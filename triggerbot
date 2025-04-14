@@ -6,6 +6,27 @@ local lp = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"
 local mouse = lp:GetMouse()
 local triggerEnabled = false
 
+-- UI Setup
+local ScreenGui = Instance.new("ScreenGui")
+local ToggleLabel = Instance.new("TextLabel")
+
+ScreenGui.Name = "TriggerBotIndicator"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game:GetService("CoreGui")
+
+ToggleLabel.Name = "ToggleLabel"
+ToggleLabel.Parent = ScreenGui
+ToggleLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleLabel.BackgroundTransparency = 0.2
+ToggleLabel.Position = UDim2.new(0, 10, 0, 10)
+ToggleLabel.Size = UDim2.new(0, 150, 0, 30)
+ToggleLabel.Font = Enum.Font.SourceSansBold
+ToggleLabel.TextSize = 18
+ToggleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleLabel.Text = "🔴 TriggerBot"
+ToggleLabel.Active = true
+ToggleLabel.Draggable = true
+
 local function gettarget(instance)
    for i, v in next, Players:GetPlayers() do
       if v.Character and (instance == v.Character or instance:IsDescendantOf(v.Character)) then
@@ -19,6 +40,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
    if processed then return end
    if input.KeyCode == Enum.KeyCode.C then
       triggerEnabled = not triggerEnabled
+      ToggleLabel.Text = triggerEnabled and "🟢 TriggerBot" or "🔴 TriggerBot"
 
       if triggerEnabled then
          con = RunService.Heartbeat:Connect(function()
@@ -40,6 +62,5 @@ getgenv().disable = function()
       warn("Disconnecting:", con)
       con:Disconnect()
    end
+   ToggleLabel.Text = "🔴 TriggerBot"
 end
-
-print("skibidi")
