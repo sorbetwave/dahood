@@ -41,3 +41,5 @@ getgenv().disable = function()
       con:Disconnect()
    end
 end
+
+print("skibidi")
