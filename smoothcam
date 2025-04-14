@@ -15,18 +15,17 @@ local victim = nil
 local targeting = false
 local fovThreshold = 0.5
 
--- FOV Circle (universal position)
+local fovRadius = 60
+
 local fovCircle = Drawing.new("Circle")
-fovCircle.Color = Color3.new(1, 1, 1)
+fovCircle.Color = Color3.new(1, 1, 1) -- white
 fovCircle.Thickness = 1
-fovCircle.Radius = 60
+fovCircle.Radius = fovRadius
 fovCircle.Filled = false
 fovCircle.Visible = true
 
--- Update FOV position correctly based on screen center
 runservice.RenderStepped:Connect(function()
-    local viewportSize = currentCamera.ViewportSize
-    fovCircle.Position = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+    fovCircle.Position = Vector2.new(mouse.X, mouse.Y) + Vector2.new(0.5, 0.5)
 end)
 
 -- Softlock shake function
