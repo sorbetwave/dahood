@@ -1,51 +1,43 @@
 local Players = game:GetService("Players")
-local lp = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() and Players.LocalPlayer
-local mouse = lp:GetMouse()
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
+local lp = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() and Players.LocalPlayer
+local mouse = lp:GetMouse()
 local triggerEnabled = false
-local con
 
 local function gettarget(instance)
-   for i,v in next, Players:GetPlayers() do
+   for i, v in next, Players:GetPlayers() do
       if v.Character and (instance == v.Character or instance:IsDescendantOf(v.Character)) then
          return true
       end
    end
 end
 
-local function notify(state)
-   pcall(function()
-       game.StarterGui:SetCore("SendNotification", {
-           Title = "Trigger Bot",
-           Text = state and "Enabled" or "Disabled",
-           Duration = 2
-       })
-   end)
-end
+local con
+UserInputService.InputBegan:Connect(function(input, processed)
+   if processed then return end
+   if input.KeyCode == Enum.KeyCode.C then
+      triggerEnabled = not triggerEnabled
 
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if not gpe and input.KeyCode == Enum.KeyCode.C then
-        triggerEnabled = not triggerEnabled
-        notify(triggerEnabled)
-
-        if triggerEnabled and not con then
-            con = RunService.Heartbeat:Connect(function()
-                if gettarget(mouse.Target) and mouse.Target.Name == "HumanoidRootPart" then
-                    mouse1press()
-                    mouse1release()
-                end
-            end)
-        elseif con then
-            con:Disconnect()
-            con = nil
-        end
-    end
+      if triggerEnabled then
+         con = RunService.Heartbeat:Connect(function()
+            if gettarget(mouse.Target) then
+               mouse1press()
+               task.wait()
+               mouse1release()
+            end
+         end)
+      elseif con then
+         con:Disconnect()
+      end
+   end
 end)
 
 getgenv().disable = function()
    getgenv().disable = nil
-   warn("Disconnecting:", con)
-   if con then con:Disconnect() end
+   if con then
+      warn("Disconnecting:", con)
+      con:Disconnect()
+   end
 end
