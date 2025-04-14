@@ -14,16 +14,19 @@ local currentCamera = workspace.CurrentCamera
 local victim = nil
 local targeting = false
 local fovThreshold = 0.5
-local fovRadius = 60
 
 -- FOV Circle
 local fovCircle = Drawing.new("Circle")
-fovCircle.Color = Color3.fromRGB(255, 255, 255)
+fovCircle.Color = Color3.new(1, 1, 1)
 fovCircle.Thickness = 1
-fovCircle.Radius = fovRadius
+fovCircle.Radius = 45
 fovCircle.Filled = false
-fovCircle.Transparency = 1
 fovCircle.Visible = true
+
+-- Update FOV circle position
+runservice.RenderStepped:Connect(function()
+    fovCircle.Position = Vector2.new(mouse.X, mouse.Y)
+end)
 
 -- Softlock shake function
 local function addShake(position)
@@ -77,7 +80,7 @@ local function target()
 
                 if success and screenPos.Z > 0 and isWithinFOV(plr.Character.HumanoidRootPart) and isVisible(plr.Character.HumanoidRootPart) then
                     local distance = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                    if distance < shortdistance and distance <= fovRadius then
+                    if distance < shortdistance then
                         target = plr.Character.HumanoidRootPart
                         shortdistance = distance
                     end
@@ -119,8 +122,6 @@ runservice.Heartbeat:Connect(function(deltaTime)
 end)
 
 runservice.RenderStepped:Connect(function()
-    fovCircle.Position = Vector2.new(mouse.X, mouse.Y)
-
     if targeting and victim and victim.Parent then
         local character = victim.Parent
         local humanoid = character:FindFirstChildOfClass("Humanoid")
