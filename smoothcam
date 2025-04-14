@@ -24,7 +24,7 @@ fovCircle.Radius = fovRadius
 fovCircle.Filled = false
 fovCircle.Visible = true
 
-local yOffset = -15 -- change this until it centers exactly on the cursor
+local yOffset = 50 -- change this until it centers exactly on the cursor
 
 runservice.RenderStepped:Connect(function()
     fovCircle.Position = Vector2.new(mouse.X, mouse.Y + yOffset)
